@@ -1,0 +1,101 @@
+---
+title: "Introduction"
+author: "Colin O'Rourke"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteDepends{lme4, magrittr}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+Set a seed for reproducibility.
+
+```{r set-a-seed}
+set.seed(1313L)
+```
+
+Activate useful libraries.
+
+```{r libs}
+library(lme4)
+library(magrittr)
+library(npicc)
+```
+
+# Purpose
+
+Here we want to introduce the calculation of a measure of group association called the Intraclass Concordance Coefficient. This quantity is similar in flavour to the commonly used Intraclass Correlation Coefficient, and may be view as its nonparametric, rank-based analogue.
+
+# Simulate Data
+
+To demonstrate, we will first simulate some data with a known level of association. Here this is done using the `makeSample` function, which simulates data using a gaussian-based components-of-variance structure. In other words the outcome value $j$ for subject $i$, we have,
+
+$$
+Y_{ij} = \mu + \eta_{i} + \epsilon_{ij},
+$$
+where $\eta_i \sim N(0,\tau^2)$ and $\epsilon_{ij} \sim N(0,\sigma^2)$, with $\eta_i \perp \epsilon_{ij}$. Here, $\tau$ is the subject-level SD, and $\sigma$ is the observation-level SD.
+
+Now, we can simulate data from this model, with an overall mean of about -2.3, subject-level SD of 1, and observation-level SD of 0.25. We also want to treat this data as latent, which the actually observed outcomes being the exponentiated latent value.
+
+```{r simulate-data}
+df = make_sample(
+  nSubj = 10,
+  nObsPerSubj = c(2,4,6),
+  overall_mean = log(0.1),
+  subj_sd = 1,
+  obs_sd = 0.25,
+  obs_trans = exp
+)
+
+# turn subj into a factor, levels ordered by mean level
+df$subj = reorder(df$subj, df$obs, mean)
+
+#print result
+head(df, n = 10L)
+```
+
+These are what our simulated observed values look like:
+
+```{r visualise-data, fig.cap="Plot showing observed value of outcome by subject."}
+par(mar = c(4.5, 4.5, 1.5, 1.5))
+
+plot(
+  obs_trans ~ jitter(as.integer(subj), factor = 0.1),
+  data = df,
+  pch=16,
+  cex=0.2,
+  xlab="Subject #",
+  ylab="Value of outcome"
+)
+```
+
+# Calculate ICCs
+
+In addition to showing how one might calculate the new ICC agreement statistic, we might also want to compare its value with the common ICC using `lme4::lmer`.
+
+```{r calculate-icc-values}
+# Standard variance components agreement stat
+lmer_icc = if(require("lme4") && require("magrittr")) {
+  lmer(obs_trans ~ (1|subj), data = df) %>%
+  VarCorr %>%
+  as.data.frame %>%
+  extract2("vcov") %>%
+  {.[1] / sum(.)}
+} else {
+  NA_real_
+}
+
+# New concordance-style agreement stat
+npicc_icc = getICC(x = df$subj, y = df$obs_trans)
+```
+
+The value of the traditional ICC is `r round(lmer_icc, 2)`, whereas the value of the rank-based ICC is `r round(npicc_icc,2)`.
