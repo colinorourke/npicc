@@ -14,3 +14,5 @@ LazyData: true
 RoxygenNote: 7.1.2
 Suggests: knitr, rmarkdown, lme4, magrittr
 VignetteBuilder: knitr
+URL: https://github.com/colinorourke/npicc
+BugReports: https://github.com/colinorourke/npicc/issues
